@@ -13,7 +13,8 @@ from payments import create_invoice
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-# ===== Папка с картинками =====
+import os
+
 IMG_DIR = os.path.join(os.path.dirname(__file__), "images")
 
 # ===== АНТИФЛУД =====
