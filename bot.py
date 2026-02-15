@@ -4,11 +4,11 @@ import time
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from config import BOT_TOKEN
 from db import init_db, add_user, set_lang, register_user, login_user, get_uid, get_keys, save_payment
 from payments import create_invoice
-from config import BOT_TOKEN
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
@@ -65,7 +65,8 @@ def get_plans_kb():
 
 # ===== Функции отправки сообщений с картинками =====
 async def send_authorization(user_id):
-    with open(os.path.join(IMG_DIR, "authorization.png"), "rb") as photo:
+    path = os.path.join(IMG_DIR, "authorization.png")
+    with open(path, "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🔑 Авторизация / Регистрация**\nВведите _логин_ и _пароль_ через пробел",
@@ -73,7 +74,8 @@ async def send_authorization(user_id):
         )
 
 async def send_main_menu(user_id):
-    with open(os.path.join(IMG_DIR, "mainmenu.png"), "rb") as photo:
+    path = os.path.join(IMG_DIR, "mainmenu.png")
+    with open(path, "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🏠 Главное меню**\nВыберите действие:",
@@ -85,7 +87,8 @@ async def send_keys(user_id, keys_list):
     builder = InlineKeyboardBuilder()
     for k in keys_list:
         builder.add(InlineKeyboardButton(text=k, callback_data=f"key_{k}"))
-    with open(os.path.join(IMG_DIR, "keys.png"), "rb") as photo:
+    path = os.path.join(IMG_DIR, "keys.png")
+    with open(path, "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🗝 Ваши ключи**",
@@ -94,7 +97,8 @@ async def send_keys(user_id, keys_list):
         )
 
 async def send_profile(user_id, uid):
-    with open(os.path.join(IMG_DIR, "profile.png"), "rb") as photo:
+    path = os.path.join(IMG_DIR, "profile.png")
+    with open(path, "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption=f"**👤 Профиль**\nUID: `{uid}`",
@@ -159,7 +163,7 @@ async def choose_payment_method(call: types.CallbackQuery):
 async def choose_plan(call: types.CallbackQuery):
     pid = call.data.split("_")[1]
     plan = PLANS[pid]
-    # Для CryptoBot создаем инвойс
+    # Создаём инвойс через CryptoBot
     url, invoice = await create_invoice(plan["price"], call.from_user.id)
     await save_payment(invoice, call.from_user.id)
     await call.message.edit_text(
