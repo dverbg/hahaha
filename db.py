@@ -26,10 +26,10 @@ async def init_db():
                 uid VARCHAR(50)
             )
             """)
-            # Таблица ключей
+            # Таблица ключей (переименована в user_keys)
             await cur.execute("""
-            CREATE TABLE IF NOT EXISTS keys (
-                key VARCHAR(255) PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS user_keys (
+                key_id VARCHAR(255) PRIMARY KEY,
                 display_name VARCHAR(255),
                 user_id BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -45,7 +45,6 @@ async def init_db():
             """)
 
 # ===== Функции для bot.py =====
-
 async def add_user(user_id):
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
@@ -89,10 +88,18 @@ async def get_keys(user_id):
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT key, display_name FROM keys WHERE user_id=%s", (user_id,)
+                "SELECT key_id, display_name FROM user_keys WHERE user_id=%s", (user_id,)
             )
             rows = await cur.fetchall()
             return rows or []
+
+async def save_key(key_id, display_name, user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT IGNORE INTO user_keys (key_id, display_name, user_id) VALUES (%s,%s,%s)",
+                (key_id, display_name, user_id)
+            )
 
 async def save_payment(invoice_id, user_id):
     async with pool.acquire() as conn:
