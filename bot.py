@@ -157,7 +157,6 @@ async def choose_payment_method(call: types.CallbackQuery):
 async def choose_plan(call: types.CallbackQuery):
     pid = call.data.split("_")[1]
     plan = PLANS[pid]
-    # Создаём инвойс через CryptoBot или Telegram Stars
     url, invoice = await create_invoice(plan["price"], call.from_user.id)
     await save_payment(invoice, call.from_user.id)
     await call.message.edit_text(
