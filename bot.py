@@ -13,8 +13,7 @@ from payments import create_invoice
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-import os
-
+# ===== Папка с картинками =====
 IMG_DIR = os.path.join(os.path.dirname(__file__), "images")
 
 # ===== АНТИФЛУД =====
@@ -148,23 +147,17 @@ async def menu_buy_key(call: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith("pay_"))
 async def choose_payment_method(call: types.CallbackQuery):
     method = call.data.split("_")[1]
-    if method == "cryptobot":
-        await call.message.edit_text(
-            text="Выберите тариф для CryptoBot:",
-            reply_markup=get_plans_kb()
-        )
-    else:
-        await call.message.edit_text(
-            text="Выберите тариф для Telegram Stars:",
-            reply_markup=get_plans_kb()
-        )
+    await call.message.edit_text(
+        text=f"Выберите тариф для {method.capitalize()}:",
+        reply_markup=get_plans_kb()
+    )
     await call.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("plan_"))
 async def choose_plan(call: types.CallbackQuery):
     pid = call.data.split("_")[1]
     plan = PLANS[pid]
-    # Создаём инвойс через CryptoBot
+    # Создаём инвойс через CryptoBot или Telegram Stars
     url, invoice = await create_invoice(plan["price"], call.from_user.id)
     await save_payment(invoice, call.from_user.id)
     await call.message.edit_text(
