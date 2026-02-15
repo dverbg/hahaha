@@ -6,6 +6,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 import config
 from db import *
 from payments import create_invoice
+from db import init_db
 
 bot = Bot(config.BOT_TOKEN)
 dp = Dispatcher()
@@ -112,6 +113,7 @@ async def login(m:types.Message):
 
 
 async def main():
+    await init_db()
     await dp.start_polling(bot)
 
 if __name__=="__main__":
