@@ -51,3 +51,38 @@ async def save_payment(invoice,user):
     async with db.cursor() as c:
         await c.execute("INSERT INTO payments(invoice_id,user_id) VALUES(%s,%s)",(invoice,user))
         await db.commit()
+
+async def init_db():
+    db = await connect()
+    async with db.cursor() as c:
+
+        await c.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+        id BIGINT PRIMARY KEY,
+        login TEXT,
+        password TEXT,
+        language TEXT,
+        uid TEXT
+        )
+        """)
+
+        await c.execute("""
+        CREATE TABLE IF NOT EXISTS licenses(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        owner_id BIGINT,
+        license_key TEXT,
+        duration_days INT,
+        display_name TEXT
+        )
+        """)
+
+        await c.execute("""
+        CREATE TABLE IF NOT EXISTS payments(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        invoice_id TEXT,
+        user_id BIGINT,
+        paid BOOL DEFAULT 0
+        )
+        """)
+
+        await db.commit()
