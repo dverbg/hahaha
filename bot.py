@@ -1,26 +1,29 @@
+import asyncio
 import hashlib
 import time
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
+import os
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-import config
-from db import *
+from aiogram.filters import Command
+from db import connect, init_db, add_user, set_lang, register_user, login_user, get_uid, get_keys, save_payment
 from payments import create_invoice
-from db import init_db
 
-bot = Bot(config.BOT_TOKEN)
+# ================== ПЕРЕМЕННЫЕ ==================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+# ================== АНТИФЛУД ==================
 cooldowns = {}
-
 def antiflood(uid):
-    now=time.time()
-    if uid in cooldowns and now-cooldowns[uid]<1.5:
+    now = time.time()
+    if uid in cooldowns and now - cooldowns[uid] < 1.5:
         return True
-    cooldowns[uid]=now
+    cooldowns[uid] = now
     return False
 
-
+# ================== КНОПКИ ==================
 lang_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="Русский")],[KeyboardButton(text="English")]],
     resize_keyboard=True
@@ -28,94 +31,87 @@ lang_kb = ReplyKeyboardMarkup(
 
 main_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="Профиль"),KeyboardButton(text="Мои ключи")],
-        [KeyboardButton(text="Купить ключ"),KeyboardButton(text="Выйти")]
-    ],resize_keyboard=True
+        [KeyboardButton(text="Профиль"), KeyboardButton(text="Мои ключи")],
+        [KeyboardButton(text="Купить ключ"), KeyboardButton(text="Выйти")]
+    ],
+    resize_keyboard=True
 )
 
-PLANS={
-"7":{"days":7,"price":1},
-"30":{"days":30,"price":3},
-"90":{"days":90,"price":7}
+PLANS = {
+    "7": {"days": 7, "price": 1},
+    "30": {"days": 30, "price": 3},
+    "90": {"days": 90, "price": 7}
 }
 
 plans_kb = InlineKeyboardMarkup(inline_keyboard=[
-[InlineKeyboardButton(text="7 дней — 1 USDT",callback_data="buy_7")],
-[InlineKeyboardButton(text="30 дней — 3 USDT",callback_data="buy_30")],
-[InlineKeyboardButton(text="90 дней — 7 USDT",callback_data="buy_90")]
+    [InlineKeyboardButton(text="7 дней — 1 USDT", callback_data="buy_7")],
+    [InlineKeyboardButton(text="30 дней — 3 USDT", callback_data="buy_30")],
+    [InlineKeyboardButton(text="90 дней — 7 USDT", callback_data="buy_90")]
 ])
 
-
+# ================== ХЭНДЛЕРЫ ==================
 @dp.message(Command("start"))
-async def start(m:types.Message):
-    await add_user(m.from_user.id)
-    await m.answer("Выбери язык",reply_markup=lang_kb)
+async def start_cmd(msg: types.Message):
+    await add_user(msg.from_user.id)
+    await msg.answer("Выбери язык", reply_markup=lang_kb)
 
+@dp.message(lambda m: m.text in ["Русский", "English"])
+async def lang_choice(msg: types.Message):
+    await set_lang(msg.from_user.id, msg.text)
+    await msg.answer("Введи логин и пароль через пробел")
 
-@dp.message(F.text.in_(["Русский","English"]))
-async def lang(m:types.Message):
-    await set_lang(m.from_user.id,m.text)
-    await m.answer("Введи логин пароль через пробел")
+@dp.message(lambda m: m.text == "Купить ключ")
+async def buy_key(msg: types.Message):
+    await msg.answer("Выбери тариф", reply_markup=plans_kb)
 
+@dp.callback_query(lambda c: c.data.startswith("buy_"))
+async def buy_plan(call: types.CallbackQuery):
+    pid = call.data.split("_")[1]
+    plan = PLANS[pid]
 
-@dp.message(F.text=="Купить ключ")
-async def buy(m:types.Message):
-    await m.answer("Выбери тариф",reply_markup=plans_kb)
+    url, invoice = await create_invoice(plan["price"], call.from_user.id)
+    await save_payment(invoice, call.from_user.id)
 
+    await call.message.answer(f"💳 Оплати {plan['price']} USDT:\n{url}")
 
-@dp.callback_query(F.data.startswith("buy_"))
-async def buyplan(call):
-    pid=call.data.split("_")[1]
-    plan=PLANS[pid]
+@dp.message(lambda m: m.text == "Профиль")
+async def profile(msg: types.Message):
+    uid = await get_uid(msg.from_user.id)
+    await msg.answer(f"UID: {uid}")
 
-    url,invoice=await create_invoice(plan["price"],call.from_user.id)
-    await save_payment(invoice,call.from_user.id)
-
-    await call.message.answer(f"Оплати {plan['price']} USDT:\n{url}")
-
-
-@dp.message(F.text=="Профиль")
-async def profile(m:types.Message):
-    uid=await get_uid(m.from_user.id)
-    await m.answer(f"UID: {uid}")
-
-
-@dp.message(F.text=="Мои ключи")
-async def keys(m:types.Message):
-    rows=await get_keys(m.from_user.id)
+@dp.message(lambda m: m.text == "Мои ключи")
+async def my_keys(msg: types.Message):
+    rows = await get_keys(msg.from_user.id)
     if not rows:
-        return await m.answer("Нет ключей")
-    text="\n".join([f"{i[1] or 'Без имени'} — {i[0]}" for i in rows])
-    await m.answer(text)
+        return await msg.answer("Нет ключей")
+    text = "\n".join([f"{r[1] or 'Без имени'} — {r[0]}" for r in rows])
+    await msg.answer(text)
 
-
-@dp.message(F.text=="Выйти")
-async def exit(m:types.Message):
-    await m.answer("Вы вышли /start")
-
+@dp.message(lambda m: m.text == "Выйти")
+async def logout(msg: types.Message):
+    await msg.answer("Вы вышли. /start")
 
 @dp.message()
-async def login(m:types.Message):
-    if antiflood(m.from_user.id): return
-    t=m.text.split()
-    if len(t)!=2:return
-    login,password=t
-
-    h=hashlib.sha256(password.encode()).hexdigest()
-    ok=await login_user(m.from_user.id,login,h)
-
+async def login_handler(msg: types.Message):
+    if antiflood(msg.from_user.id):
+        return
+    parts = msg.text.strip().split()
+    if len(parts) != 2:
+        return
+    login, password = parts
+    h = hashlib.sha256(password.encode()).hexdigest()
+    ok = await login_user(msg.from_user.id, login, h)
     if ok:
-        await m.answer("🎉 Вход выполнен",reply_markup=main_kb)
+        await msg.answer("🎉 Вход выполнен", reply_markup=main_kb)
     else:
-        uid=f"UID{m.from_user.id}"
-        await register_user(m.from_user.id,login,h,uid)
-        await m.answer("🎉 Аккаунт создан",reply_markup=main_kb)
+        uid = f"UID{msg.from_user.id}"
+        await register_user(msg.from_user.id, login, h, uid)
+        await msg.answer("🎉 Аккаунт создан", reply_markup=main_kb)
 
-
+# ================== СТАРТ БОТА ==================
 async def main():
-    await init_db()
+    await init_db()  # Автоинициализация таблиц
     await dp.start_polling(bot)
 
-if __name__=="__main__":
-    import asyncio
+if __name__ == "__main__":
     asyncio.run(main())
