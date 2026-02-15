@@ -16,6 +16,7 @@ async def init_db():
 
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
+            # Таблица пользователей
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -25,6 +26,7 @@ async def init_db():
                 uid VARCHAR(50)
             )
             """)
+            # Таблица ключей
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS keys (
                 key VARCHAR(255) PRIMARY KEY,
@@ -33,6 +35,7 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
+            # Таблица платежей
             await cur.execute("""
             CREATE TABLE IF NOT EXISTS payments (
                 invoice_id VARCHAR(255) PRIMARY KEY,
@@ -41,8 +44,60 @@ async def init_db():
             )
             """)
 
-async def get_connection():
-    return pool
+# ===== Функции для bot.py =====
 
-# остальные функции add_user, set_lang, register_user, login_user, get_uid, get_keys, save_payment
-# такие же как я присылал ранее
+async def add_user(user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT IGNORE INTO users (user_id) VALUES (%s)", (user_id,)
+            )
+
+async def set_lang(user_id, lang):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE users SET lang=%s WHERE user_id=%s", (lang, user_id)
+            )
+
+async def register_user(user_id, login, password_hash, uid):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE users SET login=%s, password_hash=%s, uid=%s WHERE user_id=%s",
+                (login, password_hash, uid, user_id)
+            )
+
+async def login_user(user_id, login, password_hash):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT * FROM users WHERE user_id=%s AND login=%s AND password_hash=%s",
+                (user_id, login, password_hash)
+            )
+            row = await cur.fetchone()
+            return bool(row)
+
+async def get_uid(user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT uid FROM users WHERE user_id=%s", (user_id,))
+            row = await cur.fetchone()
+            return row[0] if row else "Нет UID"
+
+async def get_keys(user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT key, display_name FROM keys WHERE user_id=%s", (user_id,)
+            )
+            rows = await cur.fetchall()
+            return rows or []
+
+async def save_payment(invoice_id, user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT IGNORE INTO payments (invoice_id, user_id) VALUES (%s, %s)",
+                (invoice_id, user_id)
+            )
