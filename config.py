@@ -1,9 +1,7 @@
 import os
 
-# Токен бота Telegram
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Параметры MySQL (берутся из переменных среды Railway)
 DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
