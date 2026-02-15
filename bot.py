@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import time
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -12,6 +13,9 @@ from config import BOT_TOKEN
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+# ===== Папка с картинками =====
+IMG_DIR = os.path.join(os.path.dirname(__file__), "images")
+
 # ===== АНТИФЛУД =====
 cooldowns = {}
 def antiflood(uid):
@@ -22,8 +26,12 @@ def antiflood(uid):
     return False
 
 # ===== Inline клавиатуры =====
+PLANS = {
+    "7": {"days": 7, "price": 1},
+    "30": {"days": 30, "price": 3},
+    "90": {"days": 90, "price": 7}
+}
 
-# Главное меню
 def get_main_menu_kb():
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -36,7 +44,6 @@ def get_main_menu_kb():
     )
     return builder.as_markup()
 
-# Выбор метода оплаты
 def get_payment_method_kb():
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -44,13 +51,6 @@ def get_payment_method_kb():
         InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="pay_stars")
     )
     return builder.as_markup()
-
-# Тарифы
-PLANS = {
-    "7": {"days": 7, "price": 1},
-    "30": {"days": 30, "price": 3},
-    "90": {"days": 90, "price": 7}
-}
 
 def get_plans_kb():
     builder = InlineKeyboardBuilder()
@@ -65,7 +65,7 @@ def get_plans_kb():
 
 # ===== Функции отправки сообщений с картинками =====
 async def send_authorization(user_id):
-    with open("images/authorization.png", "rb") as photo:
+    with open(os.path.join(IMG_DIR, "authorization.png"), "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🔑 Авторизация / Регистрация**\nВведите _логин_ и _пароль_ через пробел",
@@ -73,7 +73,7 @@ async def send_authorization(user_id):
         )
 
 async def send_main_menu(user_id):
-    with open("images/mainmenu.png", "rb") as photo:
+    with open(os.path.join(IMG_DIR, "mainmenu.png"), "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🏠 Главное меню**\nВыберите действие:",
@@ -82,38 +82,36 @@ async def send_main_menu(user_id):
         )
 
 async def send_keys(user_id, keys_list):
-    kb = InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
     for k in keys_list:
-        kb.add(InlineKeyboardButton(text=k, callback_data=f"key_{k}"))
-    with open("images/keys.png", "rb") as photo:
+        builder.add(InlineKeyboardButton(text=k, callback_data=f"key_{k}"))
+    with open(os.path.join(IMG_DIR, "keys.png"), "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption="**🗝 Ваши ключи**",
             parse_mode="Markdown",
-            reply_markup=kb.as_markup()
+            reply_markup=builder.as_markup()
         )
 
 async def send_profile(user_id, uid):
-    with open("images/profile.png", "rb") as photo:
+    with open(os.path.join(IMG_DIR, "profile.png"), "rb") as photo:
         await bot.send_photo(
             user_id, photo,
             caption=f"**👤 Профиль**\nUID: `{uid}`",
-            parse_mode="Markdown",
-            reply_markup=None
+            parse_mode="Markdown"
         )
 
 # ===== ХЭНДЛЕРЫ =====
 @dp.message(Command("start"))
 async def start_cmd(msg: types.Message):
     await add_user(msg.from_user.id)
-    kb = InlineKeyboardBuilder()
-    kb.row(
+    builder = InlineKeyboardBuilder()
+    builder.row(
         InlineKeyboardButton(text="Русский", callback_data="lang_ru"),
         InlineKeyboardButton(text="English", callback_data="lang_en")
     )
-    await msg.answer("Выбери язык / Choose language", reply_markup=kb.as_markup())
+    await msg.answer("Выбери язык / Choose language", reply_markup=builder.as_markup())
 
-# ===== Callback для выбора языка =====
 @dp.callback_query(lambda c: c.data.startswith("lang_"))
 async def lang_choice(call: types.CallbackQuery):
     lang = call.data.split("_")[1]
@@ -121,7 +119,6 @@ async def lang_choice(call: types.CallbackQuery):
     await send_authorization(call.from_user.id)
     await call.answer()
 
-# ===== Главное меню =====
 @dp.callback_query(lambda c: c.data == "profile")
 async def menu_profile(call: types.CallbackQuery):
     uid = await get_uid(call.from_user.id)
